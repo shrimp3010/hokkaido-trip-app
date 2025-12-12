@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>北海道五日遊行程 | 2026 (即時同步版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-purple': '#7C3AED', 
+                        'secondary-pink': '#EC4899', 
+                        'bg-light': '#F9FAFB', 
+                        'card-bg': '#FFFFFF',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .app-container {
+            height: calc(100vh - 64px); 
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .horizontal-scroll-menu::-webkit-scrollbar {
+            display: none;
+        }
+        .horizontal-scroll-menu {
+            -ms-overflow-style: none; 
+            scrollbar-width: none;
+        }
+        .schedule-item {
+            border-left: 2px solid #E5E7EB; 
+        }
+        .app-input {
+            @apply block w-full border-gray-200 rounded-lg shadow-sm p-3 focus:ring-primary-purple focus:border-primary-purple bg-bg-light transition duration-150;
+        }
+        .nav-button {
+            @apply flex-1 p-2 rounded-xl font-semibold transition duration-300 mx-1 text-sm;
+        }
+        .nav-active {
+            @apply bg-primary-purple text-white shadow-lg;
+        }
+        .nav-inactive {
+            @apply text-gray-600 hover:bg-gray-100;
+        }
+    </style>
+</head>
+<body class="bg-bg-light min-h-screen">
+
+<div id="app" class="max-w-md mx-auto shadow-2xl bg-white border-x border-gray-100">
+
+    <header class="bg-primary-purple text-white p-4 sticky top-0 z-20 shadow-lg">
+        <h1 class="text-xl font-extrabold text-center tracking-wide">
+            <i class="fas fa-snowflake mr-2"></i>北海道之旅 2026
+        </h1>
+        <p class="text-xs text-center mt-1 opacity-80">函館/札幌 • 五日遊 (即時同步)</p>
+    </header>
+
+    <nav class="flex justify-around bg-card-bg p-2 sticky top-16 z-10 shadow-md">
+        <button @click="currentTab = 'splitting'" :class="{'nav-active': currentTab === 'splitting', 'nav-inactive': currentTab !== 'splitting'}" class="nav-button">💰 分帳計算</button>
+        <button @click="currentTab = 'schedule'" :class="{'nav-active': currentTab === 'schedule', 'nav-inactive': currentTab !== 'schedule'}" class="nav-button">📅 行程表</button>
+        <button @click="currentTab = 'map'" :class="{'nav-active': currentTab === 'map', 'nav-inactive': currentTab !== 'map'}" class="nav-button">🗺️ 地圖</button>
+    </nav>
+
+    <div class="app-container">
+
+        <section v-if="currentTab === 'splitting'" class="p-4 space-y-6">
+            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2 mb-4">💰 旅費分帳與結算</h2>
+            
+            <div class="bg-card-bg p-5 rounded-xl shadow-lg border-l-4 border-secondary-pink">
+                <h3 class="text-lg font-bold mb-3 text-secondary-pink flex items-center"><i class="fas fa-exchange-alt mr-2"></i> 雙向匯率換算 (1 JPY = {{ exchangeRate.jpyTwd }} TWD)</h3>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">日幣 (JPY) 轉 台幣 (TWD)</label>
+                        <input type="number" v-model.number="currencyInput.jpy" placeholder="輸入日幣金額 (JPY)" class="app-input">
+                        <p class="mt-2 text-sm text-gray-600">約：<span class="font-bold text-primary-purple text-lg">{{ (currencyInput.jpy * exchangeRate.jpyTwd).toFixed(2) }} TWD</span></p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">台幣 (TWD) 轉 日幣 (JPY)</label>
+                        <input type="number" v-model.number="currencyInput.twd" placeholder="輸入台幣金額 (TWD)" class="app-input">
+                        <p class="mt-2 text-sm text-gray-600">約：<span class="font-bold text-primary-purple text-lg">{{ (currencyInput.twd / exchangeRate.jpyTwd).toFixed(2) }} JPY</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-card-bg p-5 rounded-xl shadow-lg border-l-4 border-primary-purple">
+                <h3 class="text-lg font-bold mb-3 text-primary-purple flex items-center"><i class="fas fa-plus-circle mr-2"></i> 紀錄新支出</h3>
+                <div class="space-y-3">
+                    <input type="text" v-model="newExpense.description" placeholder="用途 (e.g. 晚餐)" class="app-input">
+                    <div class="flex space-x-2">
+                        <input type="number" v-model.number="newExpense.amount" placeholder="金額" class="app-input w-2/3">
+                        <select v-model="newExpense.currency" class="app-input w-1/3">
+                            <option value="TWD">TWD</option>
+                            <option value="JPY">JPY</option>
+                        </select>
+                    </div>
+                    
+                    <select v-model="newExpense.paidBy" class="app-input">
+                        <option disabled value="">-- 誰付的錢？ --</option>
+                        <option v-for="p in participants" :key="p" :value="p">{{ p }}</option>
+                    </select>
+                    
+                    <p class="text-sm font-medium text-gray-700">參與者 (需分帳者)：</p>
+                    <div class="flex space-x-3">
+                        <div v-for="p in participants" :key="p" class="flex items-center">
+                            <input type="checkbox" :id="'split-' + p" :value="p" v-model="newExpense.splitWith" class="rounded text-primary-purple focus:ring-primary-purple">
+                            <label :for="'split-' + p" class="ml-2 text-sm">{{ p }}</label>
+                        </div>
+                    </div>
+                    
+                    <button @click="addExpense" class="w-full bg-secondary-pink text-white p-3 rounded-lg font-bold hover:bg-secondary-pink/90 transition duration-200 mt-2">
+                        紀錄支出
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mt-6">
+                <h3 class="font-bold text-gray-700 mb-3 flex items-center"><i class="fas fa-list-alt mr-2"></i> 支出明細 (總 TWD: {{ totalExpensesTWD.toFixed(2) }})</h3>
+                <ul class="space-y-2">
+                    <li v-for="(exp, index) in expenses" :key="index" class="bg-card-bg p-3 rounded-lg shadow-sm text-sm border-l-4 border-gray-100">
+                        <div class="flex justify-between items-start">
+                            <p class="font-semibold text-gray-800">{{ exp.description }}</p>
+                            <p class="text-lg font-extrabold text-primary-purple">{{ exp.amount }} {{ exp.currency }}</p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">
+                            付款人: <span class="font-medium">{{ exp.paidBy }}</span> | 參與者: {{ exp.splitWith.join(', ') }}
+                            <span v-if="exp.currency !== 'TWD'" class="text-secondary-pink ml-2">({{ (exp.amount * exchangeRate.jpyTwd).toFixed(2) }} TWD)</span>
+                        </p>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="mt-6 border-t pt-4 border-gray-100">
+                <h3 class="font-bold text-gray-700 mb-3 flex items-center"><i class="fas fa-balance-scale-right mr-2"></i> 結算結果 (TWD)</h3>
+                <ul class="text-sm space-y-2">
+                    <li v-for="(result, p) in settlementResults" :key="p" 
+                        :class="{'border-green-400 bg-green-50': result > 0, 'border-red-400 bg-red-50': result < 0}"
+                        class="p-3 rounded-lg flex justify-between items-center border">
+                        <span class="font-bold">{{ p }}</span> 
+                        <span v-if="result > 0" class="font-extrabold text-green-600">應收 {{ result.toFixed(2) }} TWD</span>
+                        <span v-else-if="result < 0" class="font-extrabold text-red-600">應付 {{ Math.abs(result).toFixed(2) }} TWD</span>
+                        <span v-else class="text-gray-500">已結清</span>
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <section v-else-if="currentTab === 'schedule'" class="pt-4">
+            
+            <div class="horizontal-scroll-menu flex overflow-x-scroll p-2 space-x-3 mb-4 sticky top-[68px] bg-bg-light/95 backdrop-blur-sm z-10">
+                <button v-for="day in scheduleData" :key="day.date" 
+                        @click="selectedDay = day.date"
+                        :class="{'bg-primary-purple text-white shadow-md': selectedDay === day.date, 'bg-card-bg text-gray-700 border border-gray-200': selectedDay !== day.date}"
+                        class="flex-shrink-0 p-3 rounded-xl transition duration-300 text-sm font-medium">
+                    <div class="text-xs font-light">{{ day.date.substring(5) }}</div>
+                    <div class="font-bold">{{ day.dayName.split(' ')[0] }}</div>
+                </button>
+            </div>
+
+            <div v-for="day in scheduleData" :key="day.date" v-show="selectedDay === day.date" class="p-4 space-y-6">
+                
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">{{ day.dayName }}</h2>
+                
+                <div class="flex items-center justify-between bg-card-bg p-4 rounded-xl shadow-inner border border-secondary-pink/30 text-secondary-pink">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-cloud-sun text-2xl"></i>
+                        <div>
+                            <p class="font-bold text-lg">{{ day.weather.temp }}°C</p>
+                            <p class="text-xs">氣溫預測 ({{ day.weather.condition }})</p>
+                        </div>
+                    </div>
+                    <button class="text-xs text-gray-500 hover:text-primary-purple/70">
+                        <i class="fas fa-map-marker-alt mr-1"></i> {{ day.location }}
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div v-for="(item, index) in day.events" :key="index" class="schedule-item relative pl-6 py-2 transition duration-150">
+                        <div class="absolute left-[-5px] top-4 w-3 h-3 bg-white border-2 border-primary-purple rounded-full shadow"></div>
+                        
+                        <p class="text-xs font-light text-primary-purple mb-1">{{ item.time }}</p>
+                        <div class="flex justify-between items-center">
+                            <p class="text-base font-semibold text-gray-800">{{ item.place }}</p>
+                            <a :href="getGoogleMapsLink(item.place)" target="_blank" class="text-sm text-secondary-pink hover:text-secondary-pink/70 transition duration-150 flex items-center">
+                                <i class="fas fa-route mr-1"></i> 導航
+                            </a>
+                        </div>
+                        <p v-if="item.note" class="text-sm text-gray-500 mt-1">{{ item.note }}</p>
+                    </div>
+                </div>
+                <button class="mt-4 w-full text-center text-sm text-secondary-pink border border-secondary-pink/50 p-3 rounded-xl hover:bg-secondary-pink/10 transition duration-200 font-medium">
+                    <i class="fas fa-plus mr-1"></i> 新增行程
+                </button>
+            </div>
+        </section>
+        
+        <section v-else-if="currentTab === 'map'" class="p-4 space-y-6">
+            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2 mb-4">🗺️ 景點地圖與定位</h2>
+            
+            <div class="bg-card-bg p-4 rounded-xl shadow-lg border border-primary-purple/30">
+                <h3 class="font-bold text-lg text-primary-purple mb-3 flex items-center"><i class="fas fa-location-arrow mr-2"></i> 我的當前位置 (模擬)</h3>
+                <div class="flex justify-between items-center bg-bg-light p-3 rounded-lg text-gray-700">
+                    <span class="font-medium">緯度/經度: 41.7687, 140.7287</span>
+                    <i class="fas fa-dot-circle text-secondary-pink"></i>
+                </div>
+            </div>
+
+            <div class="bg-card-bg p-4 rounded-xl shadow-lg h-80 flex flex-col items-center justify-center text-gray-500 border border-primary-purple/30">
+                <i class="fas fa-map-marked-alt text-4xl mb-3 text-primary-purple/70"></i>
+                <p class="text-center font-medium">地圖顯示區</p>
+                <p class="text-xs mt-1">當日 {{ getEventsByDate(selectedDay).length }} 個景點已釘選</p>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="font-bold text-gray-700 mb-3 flex items-center"><i class="fas fa-map-pin mr-2"></i> 當日景點清單 ({{ selectedDay.substring(5) }})</h3>
+                <ul class="space-y-2">
+                    <li v-for="(item, index) in getEventsByDate(selectedDay)" :key="index" class="bg-card-bg p-3 rounded-lg shadow-sm text-sm border-l-4 border-secondary-pink">
+                        <div class="flex justify-between items-center">
+                            <p class="font-semibold">{{ item.place }}</p>
+                            <a :href="getGoogleMapsLink(item.place)" target="_blank" class="text-primary-purple hover:underline text-xs flex items-center">
+                                <i class="fas fa-search mr-1"></i> 查詢地圖
+                            </a>
+                        </div>
+                        <p class="text-xs text-gray-500">{{ item.time }}</p>
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+<script type="module">
+    // 引入 Firebase SDK 和 Vue 3
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js';
+    import { getFirestore, doc, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js';
+    
+    const { ref, reactive, computed, onMounted } = Vue;
+
+    // 🌟🌟🌟 【已填入您的 Firebase 金鑰】 🌟🌟🌟
+    const firebaseConfig = {
+        apiKey: "AIzaSyDym3kPm4sCqjoGfL5LRZCzVyx1toJIHD8", 
+        authDomain: "hokkaido-trip-2026-84f2f.firebaseapp.com", 
+        projectId: "hokkaido-trip-2026-84f2f", 
+        storageBucket: "hokkaido-trip-2026-84f2f.firebasestorage.app",
+        messagingSenderId: "284815822316",
+        appId: "1:284815822316:web:053bb0395a9065635f44c9"
+        // measurementId 可省略，不影響核心功能
+    };
+
+    // 初始化 Firebase 和 Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    // 設定資料路徑：Collection 為 trips，Document ID 為 hokkaido-2026
+    const tripDocRef = doc(db, "trips", "hokkaido-2026");
+
+    // Vue 應用程式邏輯
+    const App = {
+        setup() {
+            // 核心狀態，將從 Firebase 同步
+            const scheduleData = reactive([]); 
+            const expenses = reactive([]);     
+            
+            // UI/工具狀態 (本地狀態)
+            const currentTab = ref('splitting');
+            const selectedDay = ref('2026-01-02'); 
+            const exchangeRate = reactive({ jpyTwd: 0.22 });
+            const currencyInput = reactive({ jpy: 10000, twd: 5000 });
+            const participants = ref(['A', 'B']); 
+            
+            const newExpense = reactive({
+                description: '',
+                amount: 0,
+                currency: 'JPY',
+                paidBy: '',
+                splitWith: [...participants.value]
+            });
+
+            // 初始數據結構 (若資料庫中尚無資料，則會寫入此結構)
+            const initialScheduleData = [
+                {
+                    dayName: 'Day 1 台灣→函館',
+                    date: '2026-01-02',
+                    location: '函館',
+                    weather: { temp: '-2', condition: '多雲時晴' }, 
+                    events: [
+                        { time: '06:45', place: '桃園國際機場 (TPE)', note: '機票：虎航6:45-11:10函館' },
+                        { time: '11:10', place: '函館機場 (HKD)', note: '抵達函館' },
+                        { time: '14:30', place: '金森紅磚倉庫', note: '' },
+                        { time: '17:00', place: '函館山夜景', note: '搭乘纜車' },
+                        { time: '20:00', place: '函館晚餐', note: '外帶/居酒屋' },
+                        { time: '21:00', place: '湯之川溫泉', note: '溫泉或休息' },
+                    ]
+                },
+                {
+                    dayName: 'Day 2 函館',
+                    date: '2026-01-03',
+                    location: '函館/札幌移動中',
+                    weather: { temp: '0', condition: '下雪' }, 
+                    events: [
+                        { time: '10:00', place: '函館朝市', note: '' },
+                        { time: '13:30', place: '五稜郭公園', note: '' },
+                        { time: '16:00', place: '函館站', note: '前往札幌' },
+                        { time: '20:00', place: '札幌飯店 Check In', note: '' },
+                    ]
+                },
+                {
+                    dayName: 'Day 3 札幌',
+                    date: '2026-01-04',
+                    location: '札幌',
+                    weather: { temp: '-5', condition: '大雪' }, 
+                    events: [
+                        { time: '10:00', place: '北海道神宮', note: '' },
+                        { time: '13:00', place: '圓山動物園', note: '' },
+                        { time: '15:30', place: '白色戀人公園', note: '' },
+                        { time: '18:00', place: '狸小路商店街', note: '晚餐' },
+                    ]
+                },
+                {
+                    dayName: 'Day 4 滑雪日',
+                    date: '2026-01-05',
+                    location: '滑雪場 (如小樽天狗山)',
+                    weather: { temp: '-8', condition: '飄雪' }, 
+                    events: [
+                        { time: '09:00', place: '札幌→滑雪場', note: '全日滑雪活動' },
+                        { time: '18:00', place: '滑雪場→札幌市區', note: '晚餐' },
+                    ]
+                },
+                {
+                    dayName: 'Day 5 札幌→台灣',
+                    date: '2026-01-06',
+                    location: '新千歲機場',
+                    weather: { temp: '-1', condition: '小雪' }, 
+                    events: [
+                        { time: '11:00', place: '北海道大學', note: '' },
+                        { time: '12:30', place: '札幌場外市場', note: '午餐' },
+                        { time: '14:30', place: '新千歲機場 (CTS)', note: '逛街購物' },
+                        { time: '18:40', place: '飛機回台', note: '酷航 18:40-22:15台灣' },
+                    ]
+                },
+            ];
+
+            const initialExpenses = [
+                { description: '機票 (虎航+酷航)', paidBy: 'A', amount: 15000, currency: 'TWD', splitWith: ['A', 'B'] },
+                { description: 'Day 1 晚餐', paidBy: 'B', amount: 8000, currency: 'JPY', splitWith: ['A', 'B'] },
+                { description: 'Day 2 函館朝市', paidBy: 'A', amount: 5000, currency: 'JPY', splitWith: ['A', 'B'] },
+            ];
+
+            // 【核心功能：寫入資料庫】
+            const updateFirebaseData = (newData) => {
+                updateDoc(tripDocRef, newData)
+                    .then(() => console.log("資料成功寫入 Firebase!"))
+                    .catch(error => console.error("寫入錯誤:", error));
+            };
+
+            // 【核心功能：即時同步讀取】
+            onMounted(() => {
+                onSnapshot(tripDocRef, (doc) => {
+                    if (doc.exists()) {
+                        const data = doc.data();
+                        
+                        scheduleData.splice(0, scheduleData.length, ...data.scheduleData);
+                        expenses.splice(0, expenses.length, ...data.expenses);
+                        
+                        if (!data.scheduleData.find(d => d.date === selectedDay.value)) {
+                            selectedDay.value = data.scheduleData[0]?.date || '2026-01-02';
+                        }
+                        
+                        console.log("Firebase 資料已更新！");
+                    } else {
+                        console.log("資料庫無紀錄，寫入初始數據。");
+                        // 首次載入時，將初始數據寫入 Firebase
+                        updateFirebaseData({ 
+                            scheduleData: initialScheduleData, 
+                            expenses: initialExpenses 
+                        });
+                    }
+                });
+            });
+
+            // 【分帳操作：改為更新 Firebase】
+            const addExpense = () => {
+                if (newExpense.description && newExpense.amount > 0 && newExpense.paidBy && newExpense.splitWith.length > 0) {
+                    const updatedExpenses = [...expenses, { ...newExpense }];
+                    updateFirebaseData({ expenses: updatedExpenses }); // 透過 Firebase 寫入
+                    // 重置表單
+                    newExpense.description = '';
+                    newExpense.amount = 0;
+                    newExpense.paidBy = '';
+                    newExpense.splitWith = [...participants.value]; 
+                } else {
+                    alert('請填寫完整支出資訊');
+                }
+            };
+            
+            // ... (計算屬性和方法)
+            const totalExpensesTWD = computed(() => { 
+                return expenses.reduce((sum, exp) => {
+                    let amountTWD = exp.amount;
+                    if (exp.currency === 'JPY') {
+                        amountTWD = exp.amount * exchangeRate.jpyTwd;
+                    }
+                    return sum + amountTWD;
+                }, 0);
+            });
+
+            const settlementResults = computed(() => { 
+                const balance = {};
+                participants.value.forEach(p => balance[p] = 0); 
+
+                expenses.forEach(exp => {
+                    let amountTWD = exp.amount;
+                    if (exp.currency === 'JPY') {
+                        amountTWD = exp.amount * exchangeRate.jpyTwd;
+                    }
+                    const numSplit = exp.splitWith.length;
+                    if (numSplit === 0) return; 
+                    const share = amountTWD / numSplit; 
+
+                    balance[exp.paidBy] += amountTWD;
+
+                    exp.splitWith.forEach(person => {
+                        balance[person] -= share;
+                    });
+                });
+                return balance;
+            });
+
+            const getEventsByDate = (date) => { 
+                const day = scheduleData.find(d => d.date === date);
+                return day ? day.events : [];
+            };
+
+            const getGoogleMapsLink = (placeName) => { 
+                const encodedPlace = encodeURIComponent(placeName + ', 日本 北海道');
+                return `https://www.google.com/maps/search/?api=1&query=${encodedPlace}`;
+            };
+
+
+            return {
+                currentTab, selectedDay, scheduleData, expenses, 
+                exchangeRate, currencyInput, participants, newExpense, 
+                addExpense, totalExpensesTWD, settlementResults, 
+                getEventsByDate, getGoogleMapsLink,
+            };
+        }
+    };
+
+    // 掛載 Vue 應用程式
+    Vue.createApp(App).mount('#app');
+</script>
+
+</body>
+</html>3
